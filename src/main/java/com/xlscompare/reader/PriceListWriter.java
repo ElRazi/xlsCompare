@@ -16,6 +16,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 public class PriceListWriter {
 	private String filePath;
 	private Workbook wb;
+
 	private CellStyle cs;
 
 	public static void createXLSFile(File file)
@@ -43,7 +44,12 @@ public class PriceListWriter {
 
 		return wb;
 	}
-	
+
+	public void setWb(Workbook wb) 
+	{
+		this.wb = wb;
+	}
+
 	protected synchronized Workbook readWorkbookFromFile()
 	{
 		File file = new File(filePath);
@@ -106,7 +112,7 @@ public class PriceListWriter {
 	
 	public void save()
 	{
-		XlsWriter writer = new XlsWriter(wb, filePath);
+		XlsWriter writer = new XlsWriter(getWorkbook(), filePath);
 		writer.write();
 	}
 }

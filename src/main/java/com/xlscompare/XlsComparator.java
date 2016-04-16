@@ -40,7 +40,7 @@ public class XlsComparator
     		propertiesFile = args[1];
     	
     	System.out.println(propertiesFile);
-//    	Properties readProperties = PropertyFileReader.readProperties("D:\\Projects\\Java\\kirushus\\xlscompare\\test-data\\test01\\input.properties");
+//    	Properties readProperties = PropertyFileReader.readProperties("D:\\Projects\\Java\\kirushus\\xlscompare\\test-data\\test03\\input.properties");
     	Properties readProperties = PropertyFileReader.readProperties(propertiesFile);
     	
     	String sourceFile = readProperties.getProperty(PropertyFileReader.SOURCE_FILE);
@@ -64,7 +64,8 @@ public class XlsComparator
     	System.out.println(Arrays.toString(destCells));
 
         PriceListComparator plc = new PriceListComparator(sourceFile, destFile, sourceSheet, destSheet, sourceColumn, destColumn, sourceCells, destCells);
-        plc.compareAndLog(outputFile);
+//        plc.compareAndLog(outputFile);
+        plc.findAndApplyDifferences(outputFile);
         
         System.out.println("Done");
     }

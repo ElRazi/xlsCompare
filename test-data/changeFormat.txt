@@ -1,0 +1,1 @@
+Select the range of cells > goto the menu 'Data' > 'Text to Columns' > 'Next' > 'Next' > select the "TEXT" radio button > 'Finish'.

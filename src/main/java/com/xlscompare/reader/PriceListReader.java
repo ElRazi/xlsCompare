@@ -28,7 +28,7 @@ public class PriceListReader {
 		return xlsReader.read();
 	}
 	
-	public void processSupplierPriceRaws( RowProcessor rowProcessor, int sheetNum )
+	public void processRaws( RowProcessor rowProcessor, int sheetNum )
 	{
 		wb = getWorkbook();
 		if( wb == null )
