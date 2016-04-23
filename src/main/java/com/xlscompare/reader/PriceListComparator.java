@@ -1,6 +1,7 @@
 package com.xlscompare.reader;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -8,8 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
 
 public class PriceListComparator 
 {
@@ -21,8 +25,10 @@ public class PriceListComparator
 	int destSheet;
 	int[] sourceColumns;
 	int[] destColumns;
+	int[] addSourceColumns;
+	int[] addDestColumns;
 
-	public PriceListComparator(String sourceFile, String destFile, int sourceSheet, int destSheet, int sourceNameColumn, int destNameColumn, int[] sourceColumns, int[] destColumns)
+	public PriceListComparator(String sourceFile, String destFile, int sourceSheet, int destSheet, int sourceNameColumn, int destNameColumn, int[] sourceColumns, int[] destColumns, int[] addSourceColumns, int[] addDestColumns)
 	{
 		this.sourceFile = sourceFile;
 		this.destFile = destFile;
@@ -32,6 +38,8 @@ public class PriceListComparator
 		this.destSheet = destSheet;
 		this.sourceColumns = sourceColumns;
 		this.destColumns = destColumns;
+		this.addSourceColumns = addSourceColumns;
+		this.addDestColumns = addDestColumns;
 		checkValues();
 	}
 
@@ -57,6 +65,12 @@ public class PriceListComparator
 			somethingIsWrong = true;
 			System.out.println("column lengths should be equal");
 		}
+		
+		if(addSourceColumns.length != addDestColumns.length)
+		{
+			somethingIsWrong = true;
+			System.out.println(" 'add' column lengths should be equal");
+		}
 
 		if(somethingIsWrong)
 			throw new IllegalArgumentException();
@@ -73,12 +87,18 @@ public class PriceListComparator
 	{
 		PriceListReader supplierFileReader =  new PriceListReader(sourceFile);
 
-		DifferentialSupplierRowProcessor differentialSupplierRowProcessor = new DifferentialSupplierRowProcessor(destFile, sourceNameColumn, destNameColumn, destSheet, sourceColumns, destColumns);
+		//Differences in values
+		DifferentialSupplierRowProcessor differentialSupplierRowProcessor = new DifferentialSupplierRowProcessor(destFile, sourceNameColumn, destNameColumn, destSheet, sourceColumns, destColumns, addSourceColumns, addDestColumns);
 		supplierFileReader.processRaws(differentialSupplierRowProcessor, sourceSheet);
+		
+		differentialSupplierRowProcessor.indexSource(supplierFileReader, sourceSheet);
+		differentialSupplierRowProcessor.doRemove();
+		differentialSupplierRowProcessor.doAdd();
+		
 		differentialSupplierRowProcessor.saveProcessedWorkbook(outputFile);
 	}
 
-	public static class DifferentialSupplierRowProcessor implements RowProcessor
+	public static class DifferentialSupplierRowProcessor implements RowProcessor, SheetProcessor
 	{
 		PriceListReader baseFileReader;
 		int sourceKeyColumn;
@@ -86,24 +106,29 @@ public class PriceListComparator
 		int destSheet;
 		int[] sourceColumns;
 		int[] destColumns;
-		Map<Object, Row> rowIndex;
+		int[] addSourceColumns;
+		int[] addDestColumns;
+		Map<Object, Row> rowIndexBase;
+		Map<Object, Row> rowIndexSource;
 		
-		
-		public DifferentialSupplierRowProcessor(String destFile, int sourceKeyColumn, int destKeyColumn, int destSheet, int[] sourceColumns, int[] destColumns)
+		public DifferentialSupplierRowProcessor(String destFile, int sourceKeyColumn, int destKeyColumn, int destSheet, int[] sourceColumns, int[] destColumns, int[] addSourceColumns, int[] addDestColumns)
 		{
 			this.sourceKeyColumn = sourceKeyColumn;
 			this.destKeyColumn = destKeyColumn;
 			this.destSheet = destSheet;
 			this.sourceColumns = sourceColumns;
 			this.destColumns = destColumns;
-			indexBaseFile(destFile);
+			this.addSourceColumns = addSourceColumns;
+			this.addDestColumns = addDestColumns;
+
+			baseFileReader = new PriceListReader(destFile);
+			rowIndexBase = indexFile(baseFileReader, destSheet, destKeyColumn);
 		}
 
-		public void indexBaseFile(String destFile)
+		public Map<Object, Row> indexFile(PriceListReader reader, int sheet, int keyColumn)
 		{
-			baseFileReader = new PriceListReader(destFile);
-			rowIndex = new HashMap<>();
-			baseFileReader.processRaws(new RowProcessor() {
+			final Map<Object, Row> rowIndex = new HashMap<>(); 
+			reader.processRaws(new RowProcessor() {
 				@Override
 				public void process(Row row) {
 					if(row == null)
@@ -111,14 +136,16 @@ public class PriceListComparator
 						return;
 					}
 
-					Object destKeyValue = Util.readCellValue(row, destKeyColumn);
+					Object destKeyValue = Util.readCellValue(row, keyColumn);
 					if(destKeyValue != null)
 					{
 						rowIndex.put(destKeyValue, row);
 					}
 						
 				}
-			}, destSheet);
+			}, sheet);
+			
+			return rowIndex;
 		}
 		
 		@Override
@@ -132,7 +159,7 @@ public class PriceListComparator
 //				baseFileReader.processRaws(rowFinder, destSheet);
 //				List<Row> foundRows = rowFinder.getFoundRows();
 
-				Row destRow = rowIndex.get(cellValue);
+				Row destRow = rowIndexBase.get(cellValue);
 				if( destRow != null )
 				{
 					compareAndSetDifferences(row, destRow, sourceColumns, destColumns);
@@ -162,7 +189,6 @@ public class PriceListComparator
 			int destKeyColumn;
 			List<Row> foundRows = new LinkedList<>();
 
-
 			public RowFinder(Object keyValue, Row sourceRow, int destKeyColumn)
 			{
 				this.keyValue = keyValue;
@@ -183,6 +209,77 @@ public class PriceListComparator
 
 			public List<Row> getFoundRows() {
 				return foundRows;
+			}
+		}
+
+		@Override
+		public void process(Sheet sheet) {
+			// TODO Auto-generated method stub
+			
+		}
+		
+		public void indexSource(PriceListReader supplierFileReader, int sourceSheet)
+		{
+			rowIndexSource = indexFile(supplierFileReader, sourceSheet, sourceKeyColumn);
+		}
+		
+		public void doAdd()
+		{
+			final Set<Row> rowsToAdd = new HashSet<>();
+			for (Object sourceKey : rowIndexSource.keySet()) {
+				if(rowIndexBase.get(sourceKey) == null) {
+					rowsToAdd.add(rowIndexSource.get(sourceKey));
+				}
+			}
+
+			if(!rowsToAdd.isEmpty()) {
+				baseFileReader.processSheets(new SheetProcessor() {
+					@Override
+					public void process(Sheet sheet) {
+						for( Row row : rowsToAdd )
+						{
+							System.out.println("added row: " + row.getRowNum() );
+							Row newRow = sheet.createRow(sheet.getLastRowNum()+1);
+							for(int i = 0; i < addSourceColumns.length; i++) {
+								Object cellValue = Util.readCellValue(row, addSourceColumns[i]);
+								newRow.createCell(addDestColumns[i]);
+								Util.writeCellValue(newRow, addDestColumns[i], cellValue);
+							}
+						}
+					}
+				}, destSheet);
+			}
+		}
+		
+		public void doRemove()
+		{
+			final Set<Integer> rowsToRemove = new HashSet<>();
+			for (Object baseKey : rowIndexBase.keySet()) {
+				Row sourceRow = rowIndexSource.get(baseKey);
+				if(sourceRow == null) {
+					rowsToRemove.add(rowIndexBase.get(baseKey).getRowNum());
+				}
+			}
+			
+			if(!rowsToRemove.isEmpty())
+			{
+				baseFileReader.processSheets(new SheetProcessor() {
+					@Override
+					public void process(Sheet sheet) {
+						for (int r = sheet.getLastRowNum(); r >= 0; r--) {
+							if (rowsToRemove.contains(r)) {
+								Row row = sheet.getRow(r);
+								System.out.println("remove row: " + r);
+								if (r == sheet.getLastRowNum()) {
+									sheet.removeRow(row);
+								} else {
+									sheet.removeRow(row);
+									sheet.shiftRows(r+1, sheet.getLastRowNum(), -1);
+								}
+							}
+						}
+					}
+				}, destSheet);
 			}
 		}
 		

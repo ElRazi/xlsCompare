@@ -41,6 +41,7 @@ public class XlsComparator
     	
     	System.out.println(propertiesFile);
 //    	Properties readProperties = PropertyFileReader.readProperties("D:\\Projects\\Java\\kirushus\\xlscompare\\test-data\\test03\\input.properties");
+//    	Properties readProperties = PropertyFileReader.readProperties("C:\\dev\\Projects\\kirushus\\xlscompare\\test-data\\testSimplel\\input.properties");
     	Properties readProperties = PropertyFileReader.readProperties(propertiesFile);
     	
     	String sourceFile = readProperties.getProperty(PropertyFileReader.SOURCE_FILE);
@@ -52,6 +53,8 @@ public class XlsComparator
     	int destSheet = Integer.parseInt(readProperties.getProperty(PropertyFileReader.DEST_SHEET));
     	int[] sourceCells = csvToIntArray(readProperties.getProperty(PropertyFileReader.SOURCE_CELLS));
     	int[] destCells = csvToIntArray(readProperties.getProperty(PropertyFileReader.DEST_CELLS));
+    	int[] addSourceCells = csvToIntArray(readProperties.getProperty(PropertyFileReader.ADD_SOURCE_CELLS));
+    	int[] addDestCells = csvToIntArray(readProperties.getProperty(PropertyFileReader.ADD_DEST_CELLS));
     	
     	System.out.println(sourceFile);
     	System.out.println(destFile);
@@ -62,12 +65,19 @@ public class XlsComparator
     	System.out.println(destSheet);
     	System.out.println(Arrays.toString(sourceCells));
     	System.out.println(Arrays.toString(destCells));
+    	System.out.println(Arrays.toString(addSourceCells));
+    	System.out.println(Arrays.toString(addDestCells));
 
-        PriceListComparator plc = new PriceListComparator(sourceFile, destFile, sourceSheet, destSheet, sourceColumn, destColumn, sourceCells, destCells);
-//        plc.compareAndLog(outputFile);
-        plc.findAndApplyDifferences(outputFile);
-        
-        System.out.println("Done");
+		try {
+			PriceListComparator plc = new PriceListComparator(sourceFile, destFile, sourceSheet, destSheet,
+					sourceColumn, destColumn, sourceCells, destCells, addSourceCells, addDestCells);
+			// plc.compareAndLog(outputFile);
+			plc.findAndApplyDifferences(outputFile);
+
+			System.out.println("Done");
+		} catch (IllegalArgumentException e) {
+			System.out.println("Something went wrong");
+		}
     }
     
     private static int[] csvToIntArray(String str)

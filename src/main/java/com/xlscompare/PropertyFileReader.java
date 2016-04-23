@@ -14,6 +14,8 @@ public class PropertyFileReader {
 	public static final String DEST_SHEET = "baseSheet";
 	public static final String SOURCE_CELLS = "supplierCells";
 	public static final String DEST_CELLS = "baseCells";
+	public static final String ADD_SOURCE_CELLS = "addSupplierCells";
+	public static final String ADD_DEST_CELLS = "addBaseCells";
 	public static final String OUTPUTFILE = "outputFile";
 	
 	public static Properties readProperties(String propertyFile)
